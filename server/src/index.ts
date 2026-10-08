@@ -6,6 +6,7 @@ import express from "express";
 import type { SessionWsPayload } from "@kl/shared";
 import { WebSocketServer } from "ws";
 import { createApp } from "./http/createApp.js";
+import { applyRuntimeSecrets, loadRuntimeSecrets } from "./settings/runtimeSecrets.js";
 import { loadStore, saveStore } from "./store/JsonFilePersist.js";
 import { LeaderboardHub } from "./ws/hub.js";
 
@@ -31,6 +32,9 @@ loadDotEnv(path.join(__dirname, "../.env"));
 
 const dataFile = process.env.DATA_FILE ?? path.join(__dirname, "../data/store.json");
 const posterDir = process.env.POSTER_DIR ?? path.join(__dirname, "../data/posters");
+const secretsFile = process.env.SECRETS_FILE ?? path.join(__dirname, "../data/runtime-secrets.json");
+applyRuntimeSecrets(loadRuntimeSecrets(secretsFile));
+
 const store = loadStore(dataFile);
 const hub = new LeaderboardHub();
 
@@ -43,6 +47,7 @@ const app = createApp(store, {
   onBroadcast: persistAndBroadcast,
   onChange: () => saveStore(dataFile, store),
   posterDir,
+  secretsFile,
 });
 
 fs.mkdirSync(posterDir, { recursive: true });

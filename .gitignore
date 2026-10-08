@@ -6,5 +6,7 @@ server/data/
 .worktrees/
 .superpowers/
 .env
+.env.*
+!.env.example
 
 .deploy/

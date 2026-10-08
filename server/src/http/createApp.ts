@@ -11,6 +11,11 @@ import {
 import { createNlsToken } from "../nls/token.js";
 import { getArkConfigFromEnv } from "../ark/images.js";
 import { generateAndSavePosterImage } from "../ark/saveImage.js";
+import {
+  applySettingsPatch,
+  defaultDeskToken,
+  statusFromEnv,
+} from "../settings/runtimeSecrets.js";
 
 export type CreateAppOptions = {
   onBroadcast?: (payload: SessionWsPayload) => void;
@@ -26,6 +31,10 @@ export type CreateAppOptions = {
   posterCooldownMs?: number;
   /** Max generates per group per session lifetime */
   posterMaxPerGroup?: number;
+  /** JSON file for desk-editable API keys (gitignored under server/data) */
+  secretsFile?: string;
+  /** Must match X-Desk-Token on settings routes */
+  deskToken?: string;
 };
 
 type RateEntry = { lastAt: number; count: number };
@@ -40,6 +49,17 @@ export function createApp(store: SessionStore, opts?: CreateAppOptions) {
   const rate = new Map<string, RateEntry>();
   const generateFn = opts?.generatePosterImage ?? generateAndSavePosterImage;
   const arkConfigFn = opts?.getArkConfig ?? getArkConfigFromEnv;
+  const deskToken = (opts?.deskToken ?? defaultDeskToken()).trim();
+  const secretsFile = opts?.secretsFile;
+
+  const requireDesk = (req: express.Request, res: express.Response): boolean => {
+    const token = String(req.header("X-Desk-Token") ?? "").trim();
+    if (!deskToken || token !== deskToken) {
+      res.status(403).json({ error: "DESK_FORBIDDEN" });
+      return false;
+    }
+    return true;
+  };
 
   const notifyChange = () => {
     opts?.onChange?.();
@@ -159,6 +179,19 @@ export function createApp(store: SessionStore, opts?: CreateAppOptions) {
   app.get("/api/sessions/:sessionId/teacher/verify", (req, res) => {
     if (!requireTeacher(req, res)) return;
     res.json({ ok: true });
+  });
+
+  app.get("/api/settings", (req, res) => {
+    if (!requireDesk(req, res)) return;
+    res.json({ fields: statusFromEnv() });
+  });
+
+  app.put("/api/settings", (req, res) => {
+    if (!requireDesk(req, res)) return;
+    if (!secretsFile) return res.status(503).json({ error: "SETTINGS_UNAVAILABLE" });
+    const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
+    const fields = applySettingsPatch(secretsFile, body);
+    res.json({ fields });
   });
 
   app.post("/api/sessions/:sessionId/join", (req, res) => {

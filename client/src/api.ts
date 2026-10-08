@@ -257,6 +257,40 @@ export async function fetchNlsToken() {
   }>;
 }
 
+export type SettingsFieldStatus = { configured: boolean; hint: string };
+
+export type SettingsFields = {
+  ALIYUN_AK_ID: SettingsFieldStatus;
+  ALIYUN_AK_SECRET: SettingsFieldStatus;
+  NLS_APP_KEY: SettingsFieldStatus;
+  ARK_API_KEY: SettingsFieldStatus;
+};
+
+function deskHeaders(deskToken: string, jsonBody = false): HeadersInit {
+  const h: Record<string, string> = { "X-Desk-Token": deskToken };
+  if (jsonBody) h["Content-Type"] = "application/json";
+  return h;
+}
+
+export async function fetchSettings(deskToken: string) {
+  return json(
+    await fetch("/api/settings", { headers: deskHeaders(deskToken) })
+  ) as Promise<{ fields: SettingsFields }>;
+}
+
+export async function saveSettings(
+  deskToken: string,
+  patch: Partial<Record<keyof SettingsFields, string>>
+) {
+  return json(
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: deskHeaders(deskToken, true),
+      body: JSON.stringify(patch),
+    })
+  ) as Promise<{ fields: SettingsFields }>;
+}
+
 export function wsUrl(sessionId: string) {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${location.host}/ws?sessionId=${encodeURIComponent(sessionId)}`;

@@ -375,4 +375,22 @@ describe("HTTP API", () => {
     expect(list.body.posters).toHaveLength(1);
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  it("GET/PUT /api/settings requires desk token and masks secrets", async () => {
+    const secretsFile = path.join(os.tmpdir(), `kl-set-${Date.now()}.json`);
+    const app = createApp(store, { secretsFile, deskToken: "desk-test" });
+    await request(app).get("/api/settings").expect(403);
+    const empty = await request(app).get("/api/settings").set("X-Desk-Token", "desk-test").expect(200);
+    expect(empty.body.fields.ARK_API_KEY.configured).toBe(false);
+    const saved = await request(app)
+      .put("/api/settings")
+      .set("X-Desk-Token", "desk-test")
+      .send({ ARK_API_KEY: "ark-secret-9999" })
+      .expect(200);
+    expect(saved.body.fields.ARK_API_KEY.configured).toBe(true);
+    expect(saved.body.fields.ARK_API_KEY.hint).toBe("…9999");
+    expect(process.env.ARK_API_KEY).toBe("ark-secret-9999");
+    delete process.env.ARK_API_KEY;
+    fs.rmSync(secretsFile, { force: true });
+  });
 });

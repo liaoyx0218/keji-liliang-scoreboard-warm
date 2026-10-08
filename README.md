@@ -16,12 +16,13 @@
 npm install
 ```
 
-复制环境变量模板，填入阿里云智能语音交互密钥（可与 `desktop-digital-human` 的 `.env` 相同三项），以及火山方舟文生图密钥：
+复制环境变量模板，填入密钥（也可启动后在开课台「设置」里填写，写入 `server/data/runtime-secrets.json`，该目录已 gitignore）：
 
 ```bash
 cp .env.example .env
 # ALIYUN_AK_ID / ALIYUN_AK_SECRET / NLS_APP_KEY
 # ARK_API_KEY / ARK_IMAGE_MODEL（手抄报生图，见火山方舟控制台）
+# DESK_TOKEN（须与前端开课台路径末段一致）
 ```
 
 ## 开发
@@ -54,13 +55,24 @@ npm run dev -w client -- --host
 
 ### 开课台与教师大屏地址
 
-- **开课台**（创建本场）：`/desk/kl-open-8f2c` —— 仅教师收藏，首页 `/` 不会进入开课。
-- **教师大屏**：`/host/<sessionId>/<teacherKey>` —— 密钥不在学生链接里；把学生的 `/s/...` 改成 `/t/...` 进不了大屏。
+- **开课台**（创建本场 + API 密钥设置）：`/desk/<DESK_TOKEN>` —— 默认 `kl-open-8f2c`，仅教师收藏；首页 `/` 不会进入开课。
+- **教师大屏**：`/host/<sessionId>/<teacherKey>` —— 密钥不在学生链接里。
 - **学生端**：`/s/<sessionId>`
+
+开课台右上角「设置」可配置阿里云听写与火山方舟生图密钥；请求需携带与路径一致的 desk token。
 
 ### HTTPS（心愿语音必读）
 
-平板/手机在非 `localhost` 的 **HTTP** 下通常无法调用麦克风。公开课若要用「按住说话」，请用 **HTTPS** 访问。现网可用自签：`https://47.99.244.23/`（首次需点「继续访问」）。
+平板/手机在非 `localhost` 的 **HTTP** 下通常无法调用麦克风。公开课若要用「按住说话」，请用 **HTTPS** 访问（自签证书亦可，首次需在浏览器确认继续访问）。
+
+## 公开仓库注意事项
+
+代码可公开；请确认：
+
+1. **不要提交** `.env`、`server/data/`（含 `runtime-secrets.json`、会话与海报）。
+2. **部署前改掉**默认开课台路径：同时改 `client/src/App.tsx` 的 `TEACHER_DESK_PATH` 与 `.env` 的 `DESK_TOKEN`（须同末段），否则仓库公开后默认路径等于公开。
+3. **不要把**真实公网 IP、教师大屏完整 URL、密钥写进 README / Issue / 截图。
+4. 第三方密钥权限尽量最小（阿里云 NLS、火山方舟仅生图所需）。
 
 ## 测试与构建
 
