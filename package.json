@@ -1,5 +1,5 @@
 {
-  "name": "keji-liliang-scoreboard",
+  "name": "keji-liliang-scoreboard-warm",
   "private": true,
   "workspaces": ["shared", "server", "client"],
   "scripts": {

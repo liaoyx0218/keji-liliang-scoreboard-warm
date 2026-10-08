@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams } from "react-router-dom";
 import {
   addScore,
@@ -22,6 +22,11 @@ import {
 } from "../api";
 import { TechBackdrop } from "../components/TechBackdrop";
 import { layoutBubbles, SIZE_MAX, SIZE_MIN } from "../lib/bubbleLayout";
+import {
+  reconcileBubbleBodies,
+  stepBubbles,
+  type BubbleBody,
+} from "../lib/bubblePhysics";
 import type { LeaderboardEntry, Poster, SortSubmission, SortTheme, Wish } from "@kl/shared";
 import { getSortPuzzle, seqToTheme, stripThemePrefix } from "@kl/shared";
 import "./TeacherBoard.css";
@@ -67,12 +72,14 @@ export function TeacherBoard() {
 
   const topThree = entries.slice(0, 3);
 
-  const placements = useMemo(
+  const layoutSeeds = useMemo(
     () => layoutBubbles(entries, canvasSize.w, canvasSize.h),
     [entries, canvasSize.w, canvasSize.h]
   );
 
-  const placementById = useMemo(() => new Map(placements.map((p) => [p.groupId, p])), [placements]);
+  const bodiesRef = useRef<BubbleBody[]>([]);
+  const [bodies, setBodies] = useState<BubbleBody[]>([]);
+  const placementById = useMemo(() => new Map(bodies.map((p) => [p.groupId, p])), [bodies]);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -84,6 +91,35 @@ export function TeacherBoard() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [entries.length]);
+
+  useLayoutEffect(() => {
+    const next = reconcileBubbleBodies(
+      bodiesRef.current,
+      layoutSeeds,
+      canvasSize.w,
+      canvasSize.h
+    );
+    bodiesRef.current = next;
+    setBodies(next.map((b) => ({ ...b })));
+  }, [layoutSeeds, canvasSize.w, canvasSize.h]);
+
+  useEffect(() => {
+    if (view !== "energy" || entries.length === 0) return;
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      stepBubbles(bodiesRef.current, canvasSize.w, canvasSize.h, dt);
+      setBodies(bodiesRef.current.map((b) => ({ ...b })));
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [view, entries.length, canvasSize.w, canvasSize.h]);
 
   useEffect(() => {
     const next = new Map<string, number>();
@@ -806,8 +842,6 @@ export function TeacherBoard() {
                   if (!p) return null;
                   const glow =
                     0.2 + ((p.size - SIZE_MIN) / Math.max(1, SIZE_MAX - SIZE_MIN)) * 0.8;
-                  const floatDur = `${5.5 + (e.seq % 5) * 0.7}s`;
-                  const floatDelay = `${-((e.seq * 0.85) % 6)}s`;
                   return (
                     <button
                       type="button"
@@ -820,8 +854,6 @@ export function TeacherBoard() {
                         height: p.size,
                         ["--bubble-size" as string]: String(p.size),
                         ["--bubble-glow" as string]: String(glow),
-                        ["--float-dur" as string]: floatDur,
-                        ["--float-delay" as string]: floatDelay,
                       }}
                       onClick={() => onBubbleClick(e.groupId, p.size, p.x, p.y)}
                       aria-label={`${e.name} 能量球`}
